@@ -25,12 +25,13 @@ body {
 }
 
 body {
-  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  font-family: -apple-system, "Segoe UI", ui-sans-serif, system-ui,
+    "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
 .font-display {
-  font-family: var(--font-display), Georgia, serif;
+  font-family: Georgia, "Iowan Old Style", "Times New Roman", ui-serif, serif;
 }
 
 .tabular {
@@ -73,4 +74,20 @@ button:focus-visible,
 a:focus-visible {
   outline: 2px solid var(--gold);
   outline-offset: 2px;
+}
+
+input,
+select {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+input:focus,
+select:focus {
+  border-color: var(--gold) !important;
+  box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.15);
+}
+
+a,
+button {
+  transition: opacity 0.2s ease, color 0.2s ease;
 }

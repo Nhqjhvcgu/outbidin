@@ -11,7 +11,7 @@ export const CATEGORIES = [
 export type Category = (typeof CATEGORIES)[number];
 
 // Minimum bid to appear on the board at all.
-export const MIN_BID_DOLLARS = 5;
+export const MIN_BID_DOLLARS = 1;
 
 export function isValidCategory(value: string): value is Category {
   return (CATEGORIES as readonly string[]).includes(value);

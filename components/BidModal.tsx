@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { CATEGORIES, MIN_BID_DOLLARS } from "@/lib/categories";
 
 export default function BidModal({ onClose }: { onClose: () => void }) {
@@ -42,15 +43,23 @@ export default function BidModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div
+    <motion.div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-6"
       style={{ background: "rgba(6,10,16,0.75)" }}
       onClick={onClose}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
     >
-      <div
-        className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-6 sm:p-8 count-in"
+      <motion.div
+        className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-6 sm:p-8"
         style={{ background: "var(--surface)", border: "1px solid var(--line)" }}
         onClick={(e) => e.stopPropagation()}
+        initial={{ opacity: 0, y: 24, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 16, scale: 0.98 }}
+        transition={{ type: "spring", stiffness: 340, damping: 30 }}
       >
         <div className="flex items-start justify-between mb-6">
           <div>
@@ -61,14 +70,16 @@ export default function BidModal({ onClose }: { onClose: () => void }) {
               Put your profile up.
             </h2>
           </div>
-          <button
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
             onClick={onClose}
             aria-label="Close"
             className="text-2xl leading-none"
             style={{ color: "var(--muted)" }}
           >
             ×
-          </button>
+          </motion.button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -144,19 +155,21 @@ export default function BidModal({ onClose }: { onClose: () => void }) {
             </p>
           )}
 
-          <button
+          <motion.button
+            whileHover={{ scale: loading ? 1 : 1.015 }}
+            whileTap={{ scale: loading ? 1 : 0.98 }}
             type="submit"
             disabled={loading}
             className="w-full py-3 rounded-full font-medium mt-2 disabled:opacity-60"
             style={{ background: "var(--gold)", color: "var(--bg)" }}
           >
             {loading ? "Taking you to checkout…" : `Pay $${bid || 0} & take your spot`}
-          </button>
+          </motion.button>
           <p className="text-xs text-center" style={{ color: "var(--muted-2)" }}>
             Handled securely by Stripe. Your rank goes live the moment payment clears.
           </p>
         </form>
-      </div>
+      </motion.div>
 
       <style jsx global>{`
         .input {
@@ -172,7 +185,7 @@ export default function BidModal({ onClose }: { onClose: () => void }) {
           color: var(--muted-2);
         }
       `}</style>
-    </div>
+    </motion.div>
   );
 }
 
