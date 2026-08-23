@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0b1420;
+  --surface: #121d2e;
+  --surface-2: #16233a;
+  --ink: #eceef1;
+  --muted: #8697ab;
+  --muted-2: #5d6d80;
+  --gold: #c9a227;
+  --gold-soft: #e4c86b;
+  --line: #223349;
+  --rust: #c1543b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-display {
+  font-family: var(--font-display), Georgia, serif;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: var(--gold);
+  color: var(--bg);
+}
+
+.rail {
+  background: linear-gradient(180deg, transparent, var(--gold) 8%, var(--gold) 92%, transparent);
+}
+
+@keyframes count-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.count-in {
+  animation: count-in 0.4s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .count-in {
+    animation: none;
+  }
+}
+
+input:focus-visible,
+select:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
