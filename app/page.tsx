@@ -60,19 +60,25 @@ export default function Home() {
       .catch(() => {});
   }, []);
 
-  // Center the selected category pill in its scroll container — works
-  // regardless of layout quirks, unlike relying on scrollIntoView alone.
+  // Center the selected category pill in its scroll container. Uses
+  // getBoundingClientRect (viewport-relative) rather than offsetLeft, since
+  // offsetLeft is measured against the nearest *positioned* ancestor — which
+  // isn't necessarily this scroll container — and was producing wrong,
+  // ever-drifting scroll targets.
   useEffect(() => {
     const container = pillContainerRef.current;
     const pill = pillRefs.current[activeCategory];
     if (!container || !pill) return;
-    const target =
-      pill.offsetLeft - container.clientWidth / 2 + pill.clientWidth / 2;
+    const containerRect = container.getBoundingClientRect();
+    const pillRect = pill.getBoundingClientRect();
+    const pillCenterInContent =
+      pillRect.left - containerRect.left + container.scrollLeft + pillRect.width / 2;
+    const target = pillCenterInContent - container.clientWidth / 2;
     container.scrollTo({
       left: Math.max(0, target),
       behavior: "smooth",
     });
-  }, [activeCategory, listings]);
+  }, [activeCategory]);
 
   useEffect(() => {
     let cancelled = false;
