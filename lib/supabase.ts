@@ -8,6 +8,7 @@ export type Listing = {
   category: string;
   avatar_initial: string;
   bid_amount_cents: number;
+  clicks: number;
   created_at: string;
   updated_at: string;
 };

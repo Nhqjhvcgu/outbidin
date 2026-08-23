@@ -85,16 +85,11 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ url: session.url });
-  } } catch (err: any) {
-  console.error("STRIPE CHECKOUT ERROR:", err);
-
-  return NextResponse.json(
-    {
-      error: err?.message || "Stripe checkout failed",
-      type: err?.type || null,
-      code: err?.code || null,
-    },
-    { status: 500 }
-  );
-}
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json(
+      { error: "Something went wrong starting checkout. Please try again." },
+      { status: 500 }
+    );
+  }
 }

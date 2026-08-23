@@ -4,12 +4,26 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { CATEGORIES, MIN_BID_DOLLARS } from "@/lib/categories";
 
-export default function BidModal({ onClose }: { onClose: () => void }) {
-  const [linkedinUrl, setLinkedinUrl] = useState("");
+export default function BidModal({
+  onClose,
+  initialLinkedinUrl = "",
+  initialCategory = "",
+  initialBid,
+}: {
+  onClose: () => void;
+  initialLinkedinUrl?: string;
+  initialCategory?: string;
+  initialBid?: number;
+}) {
+  const [linkedinUrl, setLinkedinUrl] = useState(initialLinkedinUrl);
   const [name, setName] = useState("");
   const [headline, setHeadline] = useState("");
-  const [category, setCategory] = useState<string>(CATEGORIES[0]);
-  const [bid, setBid] = useState(String(MIN_BID_DOLLARS));
+  const [category, setCategory] = useState<string>(
+    initialCategory && (CATEGORIES as readonly string[]).includes(initialCategory)
+      ? initialCategory
+      : CATEGORIES[0]
+  );
+  const [bid, setBid] = useState(String(initialBid ?? MIN_BID_DOLLARS));
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 

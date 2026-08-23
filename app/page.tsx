@@ -1,19 +1,78 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import {
+  Building2,
+  UserSearch,
+  TrendingUp,
+  Megaphone,
+  Search,
+  Users,
+  Sparkles,
+  LayoutGrid,
+  type LucideIcon,
+} from "lucide-react";
 import { CATEGORIES, MIN_BID_DOLLARS } from "@/lib/categories";
 import type { Listing } from "@/lib/supabase";
+import { timeAgo } from "@/lib/time";
 import BidModal from "@/components/BidModal";
+
+const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  All: LayoutGrid,
+  "Founders & Executives": Building2,
+  "Recruiters & Talent": UserSearch,
+  "Sales & Growth": TrendingUp,
+  "Marketing & Content": Megaphone,
+  "Job Seekers": Search,
+  "Consultants & Freelancers": Users,
+  Other: Sparkles,
+};
 
 function formatDollars(cents: number) {
   return `$${Math.round(cents / 100).toLocaleString("en-US")}`;
+}
+
+function trackClick(linkedinUrl: string) {
+  fetch("/api/track-click", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ linkedin_url: linkedinUrl }),
+  }).catch(() => {});
 }
 
 export default function Home() {
   const [listings, setListings] = useState<Listing[] | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>("All");
   const [modalOpen, setModalOpen] = useState(false);
+  const [quickUrl, setQuickUrl] = useState("");
+  const [quickCategory, setQuickCategory] = useState<string>("");
+  const [totalViews, setTotalViews] = useState<number | null>(null);
+  const pillRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const pillContainerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    fetch("/api/track-view", { method: "POST" })
+      .then((res) => res.json())
+      .then((data) => {
+        if (typeof data.total_views === "number") setTotalViews(data.total_views);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Center the selected category pill in its scroll container — works
+  // regardless of layout quirks, unlike relying on scrollIntoView alone.
+  useEffect(() => {
+    const container = pillContainerRef.current;
+    const pill = pillRefs.current[activeCategory];
+    if (!container || !pill) return;
+    const target =
+      pill.offsetLeft - container.clientWidth / 2 + pill.clientWidth / 2;
+    container.scrollTo({
+      left: Math.max(0, target),
+      behavior: "smooth",
+    });
+  }, [activeCategory, listings]);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,13 +96,48 @@ export default function Home() {
   const filtered =
     listings?.filter((l) => activeCategory === "All" || l.category === activeCategory) ?? [];
   const [top, ...rest] = filtered;
+  const currentTopCents = listings?.length
+    ? Math.max(...listings.map((l) => l.bid_amount_cents))
+    : 0;
+  const heroBaseBid =
+    currentTopCents > 0 ? Math.round(currentTopCents / 100) + 1 : MIN_BID_DOLLARS;
+  const [heroOverride, setHeroOverride] = useState<number | null>(null);
+  const heroBid = heroOverride ?? heroBaseBid;
+  const [modalInitialBid, setModalInitialBid] = useState<number | undefined>(undefined);
+
+  function openModalWithQuickFields() {
+    setModalInitialBid(undefined);
+    setModalOpen(true);
+  }
+
+  function openModalForHeroBid() {
+    setModalInitialBid(heroBid);
+    setModalOpen(true);
+  }
 
   return (
     <main className="min-h-screen" style={{ background: "var(--bg)" }}>
       <div className="max-w-2xl mx-auto px-5 sm:px-6 pt-14 pb-28">
+        {/* Stats bar */}
+        {totalViews !== null && (
+          <motion.div
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm mb-6"
+            style={{ background: "var(--surface-2)", color: "var(--muted)" }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.4 }}
+          >
+            <span
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ background: "var(--gold)" }}
+            />
+            {totalViews.toLocaleString("en-US")} visitors since launch
+          </motion.div>
+        )}
+
         {/* Header */}
         <motion.header
-          className="mb-10"
+          className="mb-8"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: "easeOut" }}
@@ -51,38 +145,120 @@ export default function Home() {
           <p className="text-xs tracking-[0.25em] uppercase mb-3" style={{ color: "var(--gold)" }}>
             The board only goes one way: up
           </p>
-          <h1 className="font-display italic text-4xl sm:text-5xl leading-[1.05] mb-4" style={{ color: "var(--ink)" }}>
-            Pay to sit at the top of LinkedIn.
-          </h1>
+          {currentTopCents > 0 ? (
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+              <h1 className="font-display text-3xl sm:text-4xl" style={{ color: "var(--ink)" }}>
+                Claim #1 for
+              </h1>
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setHeroOverride(Math.max(MIN_BID_DOLLARS, heroBid - 1))}
+                aria-label="Decrease amount"
+                className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 font-medium"
+                style={{ background: "var(--surface-2)", color: "var(--ink)", border: "1px solid var(--line)" }}
+              >
+                −
+              </motion.button>
+              <button
+                onClick={openModalForHeroBid}
+                className="font-display text-3xl sm:text-4xl tabular"
+                style={{ color: "var(--gold)" }}
+              >
+                {formatDollars(heroBid * 100)}
+              </button>
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setHeroOverride(heroBid + 1)}
+                aria-label="Increase amount"
+                className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 font-medium"
+                style={{ background: "var(--surface-2)", color: "var(--ink)", border: "1px solid var(--line)" }}
+              >
+                +
+              </motion.button>
+            </div>
+          ) : (
+            <h1 className="font-display text-4xl sm:text-5xl leading-[1.05] mb-4" style={{ color: "var(--ink)" }}>
+              Pay to sit at the top of LinkedIn.
+            </h1>
+          )}
           <p className="text-base leading-relaxed" style={{ color: "var(--muted)" }}>
-            Rank is not earned here, it&apos;s bought. List your profile, name your price, and
-            hold the spot until someone pays more than you did.
+            New spots start at ${MIN_BID_DOLLARS}. Paying less than the #1 price still puts
+            you on the board at whatever place your bid can take.
           </p>
         </motion.header>
 
+        {/* Quick submit */}
+        <motion.div
+          className="flex flex-col sm:flex-row gap-2 mb-8"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.1 }}
+        >
+          <input
+            type="url"
+            placeholder="Your LinkedIn profile or company URL"
+            value={quickUrl}
+            onChange={(e) => setQuickUrl(e.target.value)}
+            className="quick-input flex-1"
+          />
+          <select
+            value={quickCategory}
+            onChange={(e) => setQuickCategory(e.target.value)}
+            className="quick-input sm:w-48"
+          >
+            <option value="">Choose a category</option>
+            {CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={openModalWithQuickFields}
+            className="px-6 py-3 rounded-full font-medium shrink-0"
+            style={{ background: "var(--gold)", color: "var(--bg)" }}
+          >
+            Outbid
+          </motion.button>
+        </motion.div>
+
         {/* Category filter */}
-        <div className="flex gap-2 overflow-x-auto pb-2 mb-6 no-scrollbar">
-          {["All", ...CATEGORIES].map((c) => (
-            <button
-              key={c}
-              onClick={() => setActiveCategory(c)}
-              className="relative whitespace-nowrap px-3.5 py-1.5 rounded-full text-sm shrink-0 transition-colors duration-200"
-              style={{
-                color: activeCategory === c ? "var(--bg)" : "var(--muted)",
-                border: activeCategory === c ? "none" : "1px solid var(--line)",
-              }}
-            >
-              {activeCategory === c && (
-                <motion.span
-                  layoutId="activePill"
-                  className="absolute inset-0 rounded-full"
-                  style={{ background: "var(--gold)" }}
-                  transition={{ type: "spring", stiffness: 500, damping: 35 }}
-                />
-              )}
-              <span className="relative">{c}</span>
-            </button>
-          ))}
+        <div
+          ref={pillContainerRef}
+          className="flex gap-2 overflow-x-auto pb-2 mb-6 no-scrollbar"
+        >
+          {["All", ...CATEGORIES].map((c) => {
+            const Icon = CATEGORY_ICONS[c] ?? Sparkles;
+            return (
+              <button
+                key={c}
+                ref={(el) => {
+                  pillRefs.current[c] = el;
+                }}
+                onClick={() => setActiveCategory(c)}
+                className="relative whitespace-nowrap px-3.5 py-1.5 rounded-full text-sm shrink-0 transition-colors duration-200 flex items-center gap-1.5"
+                style={{
+                  color: activeCategory === c ? "var(--bg)" : "var(--muted)",
+                  border: activeCategory === c ? "none" : "1px solid var(--line)",
+                }}
+              >
+                {activeCategory === c && (
+                  <motion.span
+                    layoutId="activePill"
+                    className="absolute inset-0 rounded-full"
+                    style={{ background: "var(--gold)" }}
+                    transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                  />
+                )}
+                <Icon className="relative w-3.5 h-3.5" strokeWidth={2.25} />
+                <span className="relative">{c}</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Leaderboard */}
@@ -120,8 +296,7 @@ export default function Home() {
               <motion.button
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
-                onClick={() => setModalOpen(true)}
-                className="px-5 py-2.5 rounded-full font-medium text-sm"
+                onClick={openModalWithQuickFields}
                 style={{ background: "var(--gold)", color: "var(--bg)" }}
               >
                 Claim it
@@ -158,6 +333,9 @@ export default function Home() {
                       {top.headline}
                     </p>
                   )}
+                  <p className="text-xs mt-1" style={{ color: "var(--muted-2)" }}>
+                    {timeAgo(top.updated_at)} · {top.clicks ?? 0} click{top.clicks === 1 ? "" : "s"}
+                  </p>
                 </div>
                 <div className="text-right shrink-0">
                   <p className="font-display text-2xl tabular" style={{ color: "var(--gold-soft)" }}>
@@ -167,6 +345,7 @@ export default function Home() {
                     href={top.linkedin_url}
                     target="_blank"
                     rel="noreferrer"
+                    onClick={() => trackClick(top.linkedin_url)}
                     className="text-xs underline"
                     style={{ color: "var(--muted)" }}
                   >
@@ -227,7 +406,7 @@ export default function Home() {
         <motion.button
           whileHover={{ scale: 1.04 }}
           whileTap={{ scale: 0.96 }}
-          onClick={() => setModalOpen(true)}
+          onClick={openModalWithQuickFields}
           className="px-6 py-3.5 rounded-full font-medium shadow-lg"
           style={{ background: "var(--gold)", color: "var(--bg)" }}
         >
@@ -238,6 +417,9 @@ export default function Home() {
       <AnimatePresence>
         {modalOpen && (
           <BidModal
+            initialLinkedinUrl={quickUrl}
+            initialCategory={quickCategory}
+            initialBid={modalInitialBid}
             onClose={() => {
               setModalOpen(false);
             }}
@@ -252,6 +434,23 @@ export default function Home() {
         .no-scrollbar {
           -ms-overflow-style: none;
           scrollbar-width: none;
+        }
+        .quick-input {
+          background: var(--surface);
+          border: 1px solid var(--line);
+          border-radius: 9999px;
+          padding: 0.75rem 1.1rem;
+          color: var(--ink);
+          font-size: 0.95rem;
+          transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        .quick-input::placeholder {
+          color: var(--muted-2);
+        }
+        .quick-input:focus {
+          outline: none;
+          border-color: var(--gold);
+          box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.15);
         }
       `}</style>
     </main>
@@ -311,10 +510,25 @@ function Row({
             {listing.headline}
           </p>
         )}
+        <p className="text-xs mt-0.5" style={{ color: "var(--muted-2)" }}>
+          {timeAgo(listing.updated_at)} · {listing.clicks ?? 0} click{listing.clicks === 1 ? "" : "s"}
+        </p>
       </div>
-      <p className="tabular font-medium shrink-0" style={{ color: "var(--gold)" }}>
-        {formatDollars(listing.bid_amount_cents)}
-      </p>
+      <div className="text-right shrink-0">
+        <p className="tabular font-medium" style={{ color: "var(--gold)" }}>
+          {formatDollars(listing.bid_amount_cents)}
+        </p>
+        <a
+          href={listing.linkedin_url}
+          target="_blank"
+          rel="noreferrer"
+          onClick={() => trackClick(listing.linkedin_url)}
+          className="text-xs underline"
+          style={{ color: "var(--muted)" }}
+        >
+          View
+        </a>
+      </div>
     </motion.div>
   );
 }
