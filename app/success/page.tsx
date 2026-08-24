@@ -1,27 +1,11 @@
 import Link from "next/link";
-import { getStripe } from "@/lib/stripe";
 
 export default async function SuccessPage({
   searchParams,
 }: {
-  searchParams: Promise<{ session_id?: string }>;
+  searchParams: Promise<{ name?: string; amount?: string }>;
 }) {
-  const { session_id } = await searchParams;
-  let name: string | null = null;
-  let bid: string | null = null;
-
-  if (session_id) {
-    try {
-      const stripe = getStripe();
-      const session = await stripe.checkout.sessions.retrieve(session_id);
-      name = session.metadata?.name ?? null;
-      if (session.amount_total) {
-        bid = (session.amount_total / 100).toFixed(0);
-      }
-    } catch {
-      // fall through to generic message
-    }
-  }
+  const { name, amount } = await searchParams;
 
   return (
     <main className="min-h-screen flex items-center justify-center px-6" style={{ background: "var(--bg)" }}>
@@ -33,8 +17,8 @@ export default async function SuccessPage({
           {name ? `${name} is on the board.` : "You're on the board."}
         </h1>
         <p className="mb-8" style={{ color: "var(--muted)" }}>
-          {bid
-            ? `Your $${bid} bid is live now. Anyone can outbid you at any time — check back to defend your rank.`
+          {amount
+            ? `Your $${amount} bid is live now. Anyone can outbid you at any time — check back to defend your rank.`
             : "Your bid is being processed and will appear on the leaderboard shortly."}
         </p>
         <Link

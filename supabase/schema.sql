@@ -69,3 +69,21 @@ as $$
   where id = 1
   returning total_views;
 $$;
+
+-- Holds a submission's details between "create PayPal order" and "payment
+-- captured", since PayPal's own order metadata is too small to hold all of
+-- it. Written by /api/checkout, consumed and deleted by /api/capture-order
+-- (or the /api/webhook backup path if that call never completes).
+create table if not exists pending_orders (
+  order_id text primary key,
+  linkedin_url text not null,
+  name text not null,
+  headline text,
+  category text not null,
+  bid_amount_cents integer not null,
+  created_at timestamptz not null default now()
+);
+
+alter table pending_orders enable row level security;
+-- No policies: only the service_role key (server-side routes) ever
+-- touches this table. The public anon key has zero access, by design.

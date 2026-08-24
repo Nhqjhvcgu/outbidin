@@ -29,7 +29,7 @@ export function getPublicSupabase() {
 
 // Server-only client using the service role key. This bypasses Row Level
 // Security, so it must NEVER be imported into a client component and the
-// key must never be prefixed with NEXT_PUBLIC_. Only the Stripe webhook
+// key must never be prefixed with NEXT_PUBLIC_. Only the payment webhook
 // route uses this, to write a listing after a payment is confirmed.
 export function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

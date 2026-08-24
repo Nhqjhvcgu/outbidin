@@ -1,62 +1,92 @@
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
-import { getStripe } from "@/lib/stripe";
+import { PAYPAL_API_BASE, getPaypalAccessToken } from "@/lib/paypal";
 import { getServiceSupabase } from "@/lib/supabase";
 import { initialsFromName } from "@/lib/categories";
 
-// Stripe requires the raw, unparsed request body to verify the webhook
-// signature, so this route must not run body-parsing middleware. App Router
-// route handlers give us the raw text directly via req.text().
+// Backup path only — the /api/capture-order route is the primary way
+// listings get written, firing synchronously right after the user approves
+// payment. This webhook exists in case that call fails to complete (closed
+// tab, network blip) even though PayPal actually captured the payment.
+// PayPal doesn't use a simple local-HMAC signature like Stripe/Razorpay —
+// verifying a webhook means asking PayPal's own API to confirm it.
 export async function POST(req: NextRequest) {
-  const signature = req.headers.get("stripe-signature");
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-  if (!signature || !webhookSecret) {
-    return NextResponse.json({ error: "Missing signature" }, { status: 400 });
-  }
-
-  const rawBody = await req.text();
-  const stripe = getStripe();
-
-  let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
-  } catch (err) {
-    console.error("Webhook signature verification failed", err);
-    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
-  }
+    const rawBody = await req.text();
+    const event = JSON.parse(rawBody);
 
-  if (event.type === "checkout.session.completed") {
-    const session = event.data.object as Stripe.Checkout.Session;
-    const meta = session.metadata;
-
-    if (!meta || !meta.linkedin_url || !meta.name || !meta.category) {
-      console.error("Checkout session missing required metadata", session.id);
-      return NextResponse.json({ received: true });
-    }
-
-    // Trust the amount actually captured by Stripe, not the client-sent value.
-    const bidAmountCents = session.amount_total ?? 0;
-
-    const supabase = getServiceSupabase();
-    const { error } = await supabase.from("listings").upsert(
+    const accessToken = await getPaypalAccessToken();
+    const verifyRes = await fetch(
+      `${PAYPAL_API_BASE}/v1/notifications/verify-webhook-signature`,
       {
-        linkedin_url: meta.linkedin_url,
-        name: meta.name,
-        headline: meta.headline || null,
-        category: meta.category,
-        avatar_initial: initialsFromName(meta.name),
-        bid_amount_cents: bidAmountCents,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "linkedin_url" }
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          auth_algo: req.headers.get("paypal-auth-algo"),
+          cert_url: req.headers.get("paypal-cert-url"),
+          transmission_id: req.headers.get("paypal-transmission-id"),
+          transmission_sig: req.headers.get("paypal-transmission-sig"),
+          transmission_time: req.headers.get("paypal-transmission-time"),
+          webhook_id: process.env.PAYPAL_WEBHOOK_ID,
+          webhook_event: event,
+        }),
+      }
     );
-
-    if (error) {
-      console.error("Failed to upsert listing", error);
-      return NextResponse.json({ error: "DB write failed" }, { status: 500 });
+    const verification = await verifyRes.json();
+    if (verification.verification_status !== "SUCCESS") {
+      console.error("PayPal webhook signature verification failed");
+      return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
     }
-  }
 
-  return NextResponse.json({ received: true });
+    if (event.event_type === "PAYMENT.CAPTURE.COMPLETED") {
+      const resource = event.resource;
+      const orderId: string | undefined = resource?.supplementary_data?.related_ids?.order_id;
+      if (!orderId) {
+        return NextResponse.json({ received: true });
+      }
+
+      const supabase = getServiceSupabase();
+      const { data: pending } = await supabase
+        .from("pending_orders")
+        .select("*")
+        .eq("order_id", orderId)
+        .maybeSingle();
+
+      // Already handled by /api/capture-order — nothing to do.
+      if (!pending) {
+        return NextResponse.json({ received: true });
+      }
+
+      const capturedCents = resource.amount?.value
+        ? Math.round(parseFloat(resource.amount.value) * 100)
+        : pending.bid_amount_cents;
+
+      const { error } = await supabase.from("listings").upsert(
+        {
+          linkedin_url: pending.linkedin_url,
+          name: pending.name,
+          headline: pending.headline,
+          category: pending.category,
+          avatar_initial: initialsFromName(pending.name),
+          bid_amount_cents: capturedCents,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "linkedin_url" }
+      );
+
+      if (error) {
+        console.error("Webhook failed to upsert listing", error);
+        return NextResponse.json({ error: "DB write failed" }, { status: 500 });
+      }
+
+      await supabase.from("pending_orders").delete().eq("order_id", orderId);
+    }
+
+    return NextResponse.json({ received: true });
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json({ error: "Webhook error" }, { status: 500 });
+  }
 }

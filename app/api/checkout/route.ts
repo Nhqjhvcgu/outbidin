@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getStripe } from "@/lib/stripe";
-import { getPublicSupabase } from "@/lib/supabase";
+import { PAYPAL_API_BASE, getPaypalAccessToken } from "@/lib/paypal";
+import { getPublicSupabase, getServiceSupabase } from "@/lib/supabase";
 import { MIN_BID_DOLLARS, isValidCategory } from "@/lib/categories";
 
 const LINKEDIN_URL_RE = /^https:\/\/(www\.)?linkedin\.com\/(in|company)\/[a-zA-Z0-9\-_%]+\/?$/;
@@ -35,8 +35,8 @@ export async function POST(req: NextRequest) {
 
     // If this profile is already listed, the new bid must beat its own
     // current bid — otherwise paying wouldn't change anything.
-    const supabase = getPublicSupabase();
-    const { data: existing } = await supabase
+    const publicSupabase = getPublicSupabase();
+    const { data: existing } = await publicSupabase
       .from("listings")
       .select("bid_amount_cents")
       .eq("linkedin_url", linkedin_url)
@@ -53,38 +53,60 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const siteUrl =
-      process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin;
-
-    const stripe = getStripe();
-    const session = await stripe.checkout.sessions.create({
-      mode: "payment",
-      payment_method_types: ["card"],
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            unit_amount: Math.round(bidDollars * 100),
-            product_data: {
-              name: `Outbidin rank claim — ${name}`,
-              description: `Bid of $${bidDollars} to rank on the Outbidin LinkedIn leaderboard`,
-            },
-          },
-          quantity: 1,
-        },
-      ],
-      metadata: {
-        linkedin_url,
-        name,
-        headline,
-        category,
-        bid_dollars: String(bidDollars),
+    const accessToken = await getPaypalAccessToken();
+    const orderRes = await fetch(`${PAYPAL_API_BASE}/v2/checkout/orders`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
       },
-      success_url: `${siteUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${siteUrl}/?cancelled=1`,
+      body: JSON.stringify({
+        intent: "CAPTURE",
+        purchase_units: [
+          {
+            description: `Outbidin rank claim — ${name}`,
+            amount: { currency_code: "USD", value: bidDollars.toFixed(2) },
+          },
+        ],
+      }),
     });
 
-    return NextResponse.json({ url: session.url });
+    if (!orderRes.ok) {
+      const errBody = await orderRes.text();
+      console.error("PayPal order creation failed", errBody);
+      return NextResponse.json(
+        { error: "Something went wrong starting checkout. Please try again." },
+        { status: 500 }
+      );
+    }
+
+    const order = await orderRes.json();
+
+    // Stash the submission against the order id — PayPal's own metadata
+    // fields are too small to hold all of this, so the capture step (and
+    // the webhook backup) look it up from here instead.
+    const serviceSupabase = getServiceSupabase();
+    const { error: insertError } = await serviceSupabase.from("pending_orders").insert({
+      order_id: order.id,
+      linkedin_url,
+      name,
+      headline: headline || null,
+      category,
+      bid_amount_cents: Math.round(bidDollars * 100),
+    });
+    if (insertError) {
+      console.error("Failed to stash pending order", insertError);
+      return NextResponse.json(
+        { error: "Something went wrong starting checkout. Please try again." },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      order_id: order.id,
+      client_id: process.env.PAYPAL_CLIENT_ID,
+      name,
+    });
   } catch (err) {
     console.error(err);
     return NextResponse.json(
