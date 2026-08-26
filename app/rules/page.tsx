@@ -1,89 +1,98 @@
-import Link from "next/link";
-
 export const metadata = {
   title: "Rules & Moderation — Outbidin",
+  description: "Outbidin rules, moderation standards, reporting and refund policy.",
 };
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="mb-8">
+      <h2
+        className="font-display text-xl mb-3"
+        style={{ color: "var(--ink)" }}
+      >
+        {title}
+      </h2>
+      <div className="text-sm leading-7" style={{ color: "var(--muted)" }}>
+        {children}
+      </div>
+    </section>
+  );
+}
 
 export default function RulesPage() {
   return (
     <main className="min-h-screen" style={{ background: "var(--bg)" }}>
-      <div className="max-w-2xl mx-auto px-5 sm:px-6 py-14">
-        <Link href="/" className="text-sm underline" style={{ color: "var(--muted)" }}>
-          ← Back to the board
-        </Link>
-
-        <h1 className="font-display text-3xl sm:text-4xl mt-6 mb-8" style={{ color: "var(--ink)" }}>
-          Rules & Moderation
+      <div className="max-w-2xl mx-auto px-5 sm:px-6 pt-14 pb-16">
+        <p
+          className="text-xs tracking-[0.25em] uppercase mb-3"
+          style={{ color: "var(--gold)" }}
+        >
+          Outbidin
+        </p>
+        <h1
+          className="font-display text-4xl sm:text-5xl leading-[1.05] mb-4"
+          style={{ color: "var(--ink)" }}
+        >
+          Rules &amp; Moderation
         </h1>
+        <p className="text-base leading-relaxed mb-10" style={{ color: "var(--muted)" }}>
+          Outbidin is a paid leaderboard for LinkedIn profiles and companies.
+          Keep listings accurate, lawful and respectful so the board remains useful to everyone.
+        </p>
 
-        <Section title="What Outbidin is">
+        <Section title="1. What you can list">
           <p>
-            Outbidin is a paid leaderboard. Anyone can submit a LinkedIn profile or company
-            page along with a bid, and listings are ranked by bid amount, highest first.
-            Paying more than the current top bid moves you to #1; anyone can outbid you at
-            any time.
+            You may submit your own LinkedIn profile or company page, or a profile/page you are authorized to represent.
+            The submitted URL must be a valid LinkedIn profile or company URL.
           </p>
         </Section>
 
-        <Section title="What you can submit">
-          <ul className="list-disc pl-5 space-y-1.5">
-            <li>Your own LinkedIn profile or company page, or one you have permission to list.</li>
-            <li>An accurate name and headline that describe the profile being listed.</li>
-            <li>One of the listed categories that genuinely fits the profile.</li>
+        <Section title="2. Prohibited content">
+          <ul className="list-disc pl-5 space-y-1">
+            <li>Impersonation, deceptive identity claims or fraudulent information.</li>
+            <li>Illegal, threatening, hateful or abusive content.</li>
+            <li>Spam, malware, phishing or links intended to harm visitors.</li>
+            <li>Content that infringes another person's or company's rights.</li>
+            <li>Listings submitted without authorization where authorization is required.</li>
           </ul>
         </Section>
 
-        <Section title="Prohibited content and activity">
-          <ul className="list-disc pl-5 space-y-1.5">
-            <li>Listing someone else's LinkedIn profile without their permission (impersonation).</li>
-            <li>Sexually explicit, hateful, violent, or otherwise illegal content in any field.</li>
-            <li>Spam, scam, or fraudulent listings, including fake or misleading profiles.</li>
-            <li>Automated or bot-submitted entries intended to manipulate rankings.</li>
-            <li>Any use of the payment flow for a purpose other than listing a profile on the board.</li>
-          </ul>
-        </Section>
-
-        <Section title="Moderation and enforcement">
+        <Section title="3. Bidding and ranking">
           <p>
-            Every listing is reviewable after submission. We remove any listing that violates
-            these rules as soon as we become aware of it, without refunding the bid paid to
-            create it. Repeated or serious violations may result in that LinkedIn profile being
-            permanently blocked from the board.
+            Rankings are determined by bid amount. A higher valid bid can move a listing above another listing.
+            Bids are submitted through our payment provider and a listing only becomes active after payment is confirmed.
           </p>
         </Section>
 
-        <Section title="Report a listing">
+        <Section title="4. Moderation">
           <p>
-            If you spot a listing that violates these rules, email{" "}
-            <a href="mailto:contact@outbidin.lol" className="underline" style={{ color: "var(--gold)" }}>
+            We may remove or reject a listing if it violates these rules, appears fraudulent, creates a safety or legal risk,
+            or is otherwise unsuitable for the board. Repeated or serious violations may result in a permanent block from submitting listings.
+          </p>
+        </Section>
+
+        <Section title="5. Report a listing">
+          <p>
+            If you see a listing that violates these rules, email{" "}
+            <a
+              href="mailto:contact@outbidin.lol"
+              className="underline underline-offset-2"
+              style={{ color: "var(--gold)" }}
+            >
               contact@outbidin.lol
             </a>{" "}
-            with a link to the listing and a short description of the issue. We review reports
-            promptly.
+            with the listing link and a short description of the issue. We review reports promptly.
           </p>
         </Section>
 
-        <Section title="Refunds">
+        <Section title="6. Refunds">
           <p>
-            Bids are non-refundable except where a listing is removed for violating these
-            rules, or as required by law. Since rank is determined purely by bid amount,
-            being outbid by someone else is expected behavior, not grounds for a refund.
+            Bids are generally non-refundable because the service is based on the submitted bid and resulting ranking.
+            A refund may be considered when a payment was charged in error, a listing is removed for violating these rules,
+            or a refund is required by applicable law.
           </p>
         </Section>
       </div>
     </main>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="mb-8">
-      <h2 className="font-display text-xl mb-3" style={{ color: "var(--ink)" }}>
-        {title}
-      </h2>
-      <div className="text-[15px] leading-relaxed" style={{ color: "var(--muted)" }}>
-        {children}
-      </div>
-    </div>
   );
 }
