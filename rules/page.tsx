@@ -56,7 +56,7 @@ export default function RulesPage() {
           <p>
             If you spot a listing that violates these rules, email{" "}
             <a href="mailto:contact@outbidin.lol" className="underline" style={{ color: "var(--gold)" }}>
-              support@outbidin.lol
+              contact@outbidin.lol
             </a>{" "}
             with a link to the listing and a short description of the issue. We review reports
             promptly.
