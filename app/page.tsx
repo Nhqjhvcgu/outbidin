@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Building2,
@@ -406,15 +405,6 @@ export default function Home() {
             </div>
           </motion.div>
         )}
-
-        <footer className="mt-16 pt-6 flex gap-5 text-sm" style={{ borderTop: "1px solid var(--line)" }}>
-          <Link href="/rules" className="underline" style={{ color: "var(--muted)" }}>
-            Rules & Moderation
-          </Link>
-          <a href="mailto:support@outbidin.lol" className="underline" style={{ color: "var(--muted)" }}>
-            Contact
-          </a>
-        </footer>
       </div>
 
       {/* Sticky CTA */}

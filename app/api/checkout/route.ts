@@ -1,12 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PAYPAL_API_BASE, getPaypalAccessToken } from "@/lib/paypal";
 import { getPublicSupabase, getServiceSupabase } from "@/lib/supabase";
 import { MIN_BID_DOLLARS, isValidCategory } from "@/lib/categories";
 
 const LINKEDIN_URL_RE = /^https:\/\/(www\.)?linkedin\.com\/(in|company)\/[a-zA-Z0-9\-_%]+\/?$/;
 
+function getDodoBaseUrl() {
+  return process.env.DODO_PAYMENTS_ENVIRONMENT === "test_mode"
+    ? "https://test.dodopayments.com"
+    : "https://live.dodopayments.com";
+}
+
 export async function POST(req: NextRequest) {
   try {
+    const apiKey = process.env.DODO_PAYMENTS_API_KEY;
+    const productId = process.env.DODO_PRODUCT_ID;
+    const returnUrl = process.env.DODO_PAYMENTS_RETURN_URL || "https://outbidin.lol/success";
+
+    if (!apiKey || !productId) {
+      console.error("Missing DODO_PAYMENTS_API_KEY or DODO_PRODUCT_ID");
+      return NextResponse.json(
+        { error: "Payments are not configured yet. Please try again later." },
+        { status: 500 }
+      );
+    }
+
     const body = await req.json();
     const linkedin_url = String(body.linkedin_url || "").trim();
     const name = String(body.name || "").trim();
@@ -33,8 +50,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // If this profile is already listed, the new bid must beat its own
-    // current bid — otherwise paying wouldn't change anything.
+    const bidAmountCents = Math.round(bidDollars * 100);
     const publicSupabase = getPublicSupabase();
     const { data: existing } = await publicSupabase
       .from("listings")
@@ -42,7 +58,7 @@ export async function POST(req: NextRequest) {
       .eq("linkedin_url", linkedin_url)
       .maybeSingle();
 
-    if (existing && bidDollars * 100 <= existing.bid_amount_cents) {
+    if (existing && bidAmountCents <= existing.bid_amount_cents) {
       return NextResponse.json(
         {
           error: `You're already listed at $${(existing.bid_amount_cents / 100).toFixed(
@@ -53,47 +69,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const accessToken = await getPaypalAccessToken();
-    const orderRes = await fetch(`${PAYPAL_API_BASE}/v2/checkout/orders`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        intent: "CAPTURE",
-        purchase_units: [
-          {
-            description: `Outbidin rank claim — ${name}`,
-            amount: { currency_code: "USD", value: bidDollars.toFixed(2) },
-          },
-        ],
-      }),
-    });
-
-    if (!orderRes.ok) {
-      const errBody = await orderRes.text();
-      console.error("PayPal order creation failed", errBody);
-      return NextResponse.json(
-        { error: "Something went wrong starting checkout. Please try again." },
-        { status: 500 }
-      );
-    }
-
-    const order = await orderRes.json();
-
-    // Stash the submission against the order id — PayPal's own metadata
-    // fields are too small to hold all of this, so the capture step (and
-    // the webhook backup) look it up from here instead.
+    // Generate our own id before calling Dodo. It is stored in the checkout
+    // metadata so the signed payment webhook can find this exact submission.
+    const pendingOrderId = crypto.randomUUID();
     const serviceSupabase = getServiceSupabase();
+
     const { error: insertError } = await serviceSupabase.from("pending_orders").insert({
-      order_id: order.id,
+      order_id: pendingOrderId,
       linkedin_url,
       name,
       headline: headline || null,
       category,
-      bid_amount_cents: Math.round(bidDollars * 100),
+      bid_amount_cents: bidAmountCents,
     });
+
     if (insertError) {
       console.error("Failed to stash pending order", insertError);
       return NextResponse.json(
@@ -102,13 +91,54 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const checkoutPayload = {
+      product_cart: [
+        {
+          product_id: productId,
+          quantity: 1,
+          // Dodo uses the lowest denomination of the currency here, so $1 = 100.
+          // This is honored when the product is configured as Pay What You Want.
+          amount: bidAmountCents,
+        },
+      ],
+      billing_currency: "USD",
+      return_url: returnUrl,
+      metadata: {
+        order_id: pendingOrderId,
+      },
+    };
+
+    const checkoutRes = await fetch(`${getDodoBaseUrl()}/checkouts`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(checkoutPayload),
+      cache: "no-store",
+    });
+
+    const checkout = await checkoutRes.json().catch(() => null);
+
+    if (!checkoutRes.ok || !checkout?.checkout_url) {
+      await serviceSupabase.from("pending_orders").delete().eq("order_id", pendingOrderId);
+      console.error("Dodo checkout creation failed", {
+        status: checkoutRes.status,
+        body: checkout,
+      });
+      return NextResponse.json(
+        { error: "Something went wrong starting checkout. Please try again." },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({
-      order_id: order.id,
-      client_id: process.env.PAYPAL_CLIENT_ID,
+      checkout_url: checkout.checkout_url,
       name,
+      bid_amount_cents: bidAmountCents,
     });
   } catch (err) {
-    console.error(err);
+    console.error("Dodo checkout error", err);
     return NextResponse.json(
       { error: "Something went wrong starting checkout. Please try again." },
       { status: 500 }

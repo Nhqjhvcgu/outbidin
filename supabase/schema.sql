@@ -21,7 +21,7 @@ alter table listings add column if not exists clicks integer not null default 0;
 create index if not exists listings_bid_idx on listings (bid_amount_cents desc);
 
 -- Row Level Security: the public site can only ever READ listings.
--- Writes only happen from the Stripe webhook route (new listings/bids) and
+-- Writes only happen from the Dodo webhook route (new listings/bids) and
 -- the two functions below (clicks, visitor count), all via the service_role
 -- key, which bypasses these policies entirely.
 alter table listings enable row level security;
@@ -70,10 +70,10 @@ as $$
   returning total_views;
 $$;
 
--- Holds a submission's details between "create PayPal order" and "payment
--- captured", since PayPal's own order metadata is too small to hold all of
--- it. Written by /api/checkout, consumed and deleted by /api/capture-order
--- (or the /api/webhook backup path if that call never completes).
+-- Holds a submission's details between creating a Dodo checkout session and
+-- receiving payment.succeeded. The order_id is a server-generated UUID stored in
+-- the Dodo checkout metadata. Written by /api/checkout and consumed/deleted by
+-- /api/webhook after Dodo confirms payment.succeeded.
 create table if not exists pending_orders (
   order_id text primary key,
   linkedin_url text not null,
