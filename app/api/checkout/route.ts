@@ -5,7 +5,7 @@ import { MIN_BID_DOLLARS, isValidCategory } from "@/lib/categories";
 const LINKEDIN_URL_RE = /^https:\/\/(www\.)?linkedin\.com\/(in|company)\/[a-zA-Z0-9\-_%]+\/?$/;
 
 function getDodoBaseUrl() {
-  return process.env.DODO_PAYMENTS_ENVIRONMENT === "test_mode"
+  return process.env.DODO_PAYMENTS_ENVIRONMENT === "live_mode"
     ? "https://test.dodopayments.com"
     : "https://live.dodopayments.com";
 }
