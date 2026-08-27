@@ -6,7 +6,7 @@ const LINKEDIN_URL_RE = /^https:\/\/(www\.)?linkedin\.com\/(in|company)\/[a-zA-Z
 
 function getDodoBaseUrl() {
   return process.env.DODO_PAYMENTS_ENVIRONMENT === "live_mode"
-    ? "https://test.dodopayments.com"
+    ? "https://live.dodopayments.com"
     : "https://live.dodopayments.com";
 }
 
